@@ -81,3 +81,37 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.side} {self.symbol} — {self.date}"
+
+
+class SemaphoreRun(models.Model):
+    snapshot = models.ForeignKey(
+        MonthlySnapshot, on_delete=models.CASCADE, related_name="semaphore_runs"
+    )
+    ran_at = models.DateTimeField(auto_now_add=True)
+    semaforo_raw = models.JSONField()
+
+    class Meta:
+        ordering = ["-ran_at"]
+
+    def __str__(self):
+        return f"{self.snapshot.period} — {self.ran_at:%Y-%m-%d %H:%M}"
+
+
+class DividendConfig(models.Model):
+    FREQ_CHOICES = [(1,"Mensual"),(2,"Bimestral"),(3,"Trimestral"),(6,"Semestral"),(12,"Anual")]
+
+    symbol = models.CharField(max_length=10, db_index=True)
+    amount_per_share = models.DecimalField(max_digits=10, decimal_places=6)
+    interval_months = models.PositiveSmallIntegerField(default=3, choices=FREQ_CHOICES)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    tax_exempt = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["symbol", "start_date"]
+
+    def __str__(self):
+        return f"{self.symbol} ${self.amount_per_share}/sh every {self.interval_months}m from {self.start_date}"

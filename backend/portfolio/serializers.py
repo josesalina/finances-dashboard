@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import MonthlySnapshot, Holding, Dividend, Transaction
+from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
 
 
 class HoldingSerializer(serializers.ModelSerializer):
@@ -32,8 +32,9 @@ class SnapshotListSerializer(serializers.ModelSerializer):
         ]
 
     def get_semaphore_code(self, obj):
-        if obj.semaforo_raw:
-            return obj.semaforo_raw.get("semaforo", {}).get("code")
+        run = obj.semaphore_runs.first()  # ordered by -ran_at
+        if run:
+            return run.semaforo_raw.get("semaforo", {}).get("code")
         return None
 
 
@@ -48,6 +49,26 @@ class SnapshotDetailSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_semaphore_code(self, obj):
-        if obj.semaforo_raw:
-            return obj.semaforo_raw.get("semaforo", {}).get("code")
+        run = obj.semaphore_runs.first()  # ordered by -ran_at
+        if run:
+            return run.semaforo_raw.get("semaforo", {}).get("code")
         return None
+
+
+class SemaphoreRunSerializer(serializers.ModelSerializer):
+    semaphore_code = serializers.SerializerMethodField()
+    period = serializers.CharField(source="snapshot.period", read_only=True)
+    period_date = serializers.DateField(source="snapshot.period_date", read_only=True)
+
+    def get_semaphore_code(self, obj):
+        return obj.semaforo_raw.get("semaforo", {}).get("code")
+
+    class Meta:
+        model = SemaphoreRun
+        fields = ["id", "snapshot_id", "period", "period_date", "ran_at", "semaphore_code", "semaforo_raw"]
+
+
+class DividendConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DividendConfig
+        fields = "__all__"

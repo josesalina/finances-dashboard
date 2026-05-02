@@ -58,6 +58,71 @@ export interface SnapshotDetail extends SnapshotSummary {
   transactions: Transaction[];
 }
 
+export interface DividendMonthCell {
+  gross: number;
+  withheld: number;
+  net: number;
+  projected: boolean;
+}
+
+export interface DividendCalendarRow {
+  symbol: string;
+  total_real_gross: number;
+  total_real_withheld: number;
+  total_real_net: number;
+  total_proj_gross: number;
+  total_proj_withheld: number;
+  total_proj_net: number;
+  months: Record<string, DividendMonthCell>;
+}
+
+export interface DividendCalendarMonth {
+  period_date: string;
+  period: string;
+  label: string;
+  projected: boolean;
+}
+
+export interface DividendScheduleEntry {
+  symbol: string;
+  frequency: string;
+  interval_months: number;
+  last_pay_date: string | null;
+  last_record_date: string | null;
+  last_ex_date: string | null;
+  last_div_per_share: number | null;
+  next_pay_date: string | null;
+  next_ex_date: string | null;
+}
+
+export interface DividendCalendarResponse {
+  months: DividendCalendarMonth[];
+  rows: DividendCalendarRow[];
+  totals: {
+    real_gross: number;
+    real_withheld: number;
+    real_net: number;
+    proj_gross: number;
+    proj_withheld: number;
+    proj_net: number;
+    by_month: Record<string, DividendMonthCell & { projected: boolean }>;
+  };
+  schedule: DividendScheduleEntry[];
+}
+
+export interface DividendConfig {
+  id: number;
+  symbol: string;
+  amount_per_share: number;
+  interval_months: number;
+  start_date: string;
+  end_date: string | null;
+  tax_exempt: boolean;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EvolutionPoint {
   id: number;
   period_date: string;
@@ -65,4 +130,14 @@ export interface EvolutionPoint {
   total_value: number;
   cash: number;
   dividend_income: number;
+}
+
+export interface SemaphoreRun {
+  id: number;
+  snapshot_id: number;
+  period: string;
+  period_date: string;
+  ran_at: string;
+  semaphore_code: string | null;
+  semaforo_raw: Record<string, unknown>;
 }

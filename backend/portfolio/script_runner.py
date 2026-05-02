@@ -131,7 +131,8 @@ def run_semaforo(alpaca_data: dict, markowitz_data: dict) -> dict:
     _ensure_scripts_in_path()
     from semaforo_mercado import (
         extraer_ordenes, get_market_data, analizar_vix, analizar_mercado,
-        analizar_energia, analizar_refugios, semaforo_principal, ajustar_ordenes,
+        analizar_energia, analizar_refugios, analizar_credito, analizar_sectores,
+        analizar_tasas, analizar_emergentes, semaforo_principal, ajustar_ordenes,
     )
 
     now_arg = datetime.now(TZ_ARG)
@@ -141,14 +142,24 @@ def run_semaforo(alpaca_data: dict, markowitz_data: dict) -> dict:
     symbols = alpaca_data["symbols"]
     cash    = alpaca_data["cash"]
 
-    prices           = get_market_data(symbols)
-    vix              = analizar_vix(prices)
-    mercado          = analizar_mercado(prices)
-    energia          = analizar_energia(prices)
-    refugios, risk_off = analizar_refugios(prices)
+    prices               = get_market_data(symbols)
+    vix                  = analizar_vix(prices)
+    mercado              = analizar_mercado(prices)
+    energia              = analizar_energia(prices)
+    refugios, risk_off   = analizar_refugios(prices)
+    credito              = analizar_credito(prices)
+    sectores             = analizar_sectores(prices)
+    tasas                = analizar_tasas(prices)
+    emergentes           = analizar_emergentes(prices)
 
-    decision, consejo, code, razones, puntos = semaforo_principal(vix, mercado, risk_off)
-    ajustadas, alertas = ajustar_ordenes(ordenes, mercado, energia, vix, risk_off, code)
+    decision, consejo, code, razones, puntos, detalle = semaforo_principal(
+        vix, mercado, risk_off,
+        credito=credito, sectores=sectores, tasas=tasas, emergentes=emergentes,
+    )
+    ajustadas, alertas = ajustar_ordenes(
+        ordenes, mercado, energia, vix, risk_off, code,
+        credito=credito, sectores=sectores,
+    )
 
     ventas_adj  = {k: v for k, v in ajustadas.items() if v["accion"] == "VENDER" and v["delta_ajustado"] != 0}
     compras_adj = {k: v for k, v in ajustadas.items() if v["accion"] == "COMPRAR" and v["delta_ajustado"] != 0}
@@ -163,12 +174,17 @@ def run_semaforo(alpaca_data: dict, markowitz_data: dict) -> dict:
             "decision": decision, "code": code, "consejo": consejo,
             "puntos": puntos, "razones": razones,
         },
-        "vix":              vix,
-        "mercado":          mercado,
-        "energia":          energia,
-        "refugios":         refugios,
-        "risk_off":         risk_off,
-        "alertas":          alertas,
+        "vix":               vix,
+        "mercado":           mercado,
+        "energia":           energia,
+        "refugios":          refugios,
+        "risk_off":          risk_off,
+        "credito":           credito,
+        "sectores":          sectores,
+        "tasas":             tasas,
+        "emergentes":        emergentes,
+        "score_detalle":     detalle,
+        "alertas":           alertas,
         "ordenes_ajustadas": ajustadas,
         "cash_flow": {
             "cash_inicial":  cash,

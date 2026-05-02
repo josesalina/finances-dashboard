@@ -1,8 +1,11 @@
 import { Outlet, NavLink } from "react-router-dom";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/pipeline",  label: "Pipeline",  icon: "⚙️" },
+  { to: "/dashboard",       label: "Dashboard",        icon: "📊" },
+  { to: "/dividends",       label: "Dividendos",       icon: "💵" },
+  { to: "/semaforos",       label: "Semáforos",        icon: "🚦" },
+  { to: "/dividend-config", label: "Config Dividendos", icon: "⚙️" },
+  { to: "/pipeline",        label: "Pipeline",         icon: "🔧" },
 ];
 
 export default function Layout() {

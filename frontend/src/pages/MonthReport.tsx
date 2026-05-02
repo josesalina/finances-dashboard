@@ -6,7 +6,7 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import api from "../api/client";
-import type { SnapshotDetail } from "../api/types";
+import type { SnapshotDetail, SemaphoreRun } from "../api/types";
 
 const SEMAPHORE_COLORS: Record<string, string> = {
   GO:      "bg-green-500/20 text-green-400 border-green-500/30",
@@ -23,13 +23,42 @@ export default function MonthReport() {
   const { id } = useParams<{ id: string }>();
   const [snapshot, setSnapshot] = useState<SnapshotDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [latestRun, setLatestRun] = useState<SemaphoreRun | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const loadSnapshot = () => {
     if (!id) return;
+    setLoading(true);
     api.get<SnapshotDetail>(`/snapshots/${id}/`)
       .then((r) => setSnapshot(r.data))
       .finally(() => setLoading(false));
+  };
+
+  const loadLatestRun = () => {
+    if (!id) return;
+    api.get<SemaphoreRun[]>(`/semaphore-runs/?snapshot_id=${id}`)
+      .then((r) => setLatestRun(r.data[0] ?? null));
+  };
+
+  useEffect(() => {
+    loadSnapshot();
+    loadLatestRun();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const handleRefreshSemaforo = async () => {
+    if (!id) return;
+    setRefreshing(true);
+    try {
+      const res = await api.post<SemaphoreRun>("/semaphore-runs/run/", { snapshot_id: Number(id) });
+      setLatestRun(res.data);
+      loadSnapshot();
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) return <div className="p-6 text-gray-500 text-sm">Cargando…</div>;
   if (!snapshot) return <div className="p-6 text-gray-500 text-sm">Snapshot no encontrado.</div>;
@@ -146,7 +175,22 @@ export default function MonthReport() {
 
         {/* Semaphore */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-          <p className="text-sm font-medium text-gray-300">Semáforo de mercado</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-300">Semáforo de mercado</p>
+            <button
+              onClick={handleRefreshSemaforo}
+              disabled={refreshing || !snapshot?.markowitz_raw}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title={snapshot?.markowitz_raw ? "Volver a correr el semáforo" : "Ejecutar Markowitz primero"}
+            >
+              {refreshing ? (
+                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : "🔄"} Actualizar
+            </button>
+          </div>
           {semCode && semInfo ? (
             <>
               <div className={`flex items-center gap-3 p-3 rounded-lg border ${SEMAPHORE_COLORS[semCode] ?? ""}`}>
@@ -156,6 +200,11 @@ export default function MonthReport() {
                 <div>
                   <p className="text-sm font-semibold">{String(semInfo.decision ?? semCode)}</p>
                   <p className="text-xs text-gray-400">{String(semInfo.consejo ?? "")}</p>
+                  {latestRun && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Corrido el {new Date(latestRun.ran_at).toLocaleString("es-AR")}
+                    </p>
+                  )}
                 </div>
               </div>
               {mercado && Object.entries(mercado).slice(0, 5).map(([ticker, data]) => (
