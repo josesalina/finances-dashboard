@@ -396,6 +396,36 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             if sym_proj:
                 projected_cells[sym] = sym_proj
 
+        # Projections for configs that have NO historical dividend data at all
+        for sym, config in active_configs.items():
+            if sym in sym_month:
+                continue  # already handled above
+
+            qty = Decimal(str(holdings_map.get(sym, {}).get("qty", 1)))
+            avg_gross = config.amount_per_share * qty
+            avg_withheld = Decimal("0") if config.tax_exempt else avg_gross * Decimal("0.30") * -1
+            interval_months = config.interval_months
+            config_start = config.start_date.replace(day=1)
+            config_end = config.end_date.replace(day=1) if config.end_date else end_of_year
+            proj_end = min(config_end, end_of_year)
+
+            sym_proj = {}
+            next_date = config_start
+            while next_date <= proj_end:
+                mk = str(next_date)
+                if mk not in real_month_keys:
+                    sym_proj[mk] = {
+                        "gross": float(avg_gross),
+                        "withheld": float(avg_withheld),
+                        "net": float(avg_gross + avg_withheld),
+                        "projected": True,
+                    }
+                    projected_month_keys.add(mk)
+                next_date = add_months(next_date, interval_months)
+
+            if sym_proj:
+                projected_cells[sym] = sym_proj
+
         # Build sorted list of all months (real + projected)
         all_month_keys = sorted(real_month_keys | projected_month_keys)
         months_info = []
@@ -556,6 +586,37 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 "last_record_date": last_record_date,
                 "last_ex_date": str(date.fromisoformat(last_record_date) - timedelta(days=1)) if last_record_date else None,
                 "last_div_per_share": last_div_per_share,
+                "next_pay_date": next_pay_date_str,
+                "next_ex_date": next_ex_date_str,
+            })
+
+        # Schedule entries for config-only symbols (no historical dividends)
+        import calendar as cal
+        from datetime import timedelta as _td
+        for sym, config in active_configs.items():
+            if sym in sym_month:
+                continue  # already in schedule above
+            if sym not in projected_cells:
+                continue
+            interval_months = config.interval_months
+            today_first = today.replace(day=1)
+            candidate = max(config.start_date.replace(day=1), today_first)
+            config_end = config.end_date.replace(day=1) if config.end_date else end_of_year
+            next_pay_date_str = None
+            next_ex_date_str = None
+            if candidate <= min(end_of_year, config_end):
+                max_day = cal.monthrange(candidate.year, candidate.month)[1]
+                actual_pay = date(candidate.year, candidate.month, min(15, max_day))
+                next_pay_date_str = str(actual_pay)
+                next_ex_date_str = str(actual_pay - _td(days=3))
+            schedule.append({
+                "symbol": sym,
+                "frequency": FREQ_LABELS.get(interval_months, f"Cada {interval_months}m"),
+                "interval_months": interval_months,
+                "last_pay_date": None,
+                "last_record_date": None,
+                "last_ex_date": None,
+                "last_div_per_share": float(config.amount_per_share),
                 "next_pay_date": next_pay_date_str,
                 "next_ex_date": next_ex_date_str,
             })

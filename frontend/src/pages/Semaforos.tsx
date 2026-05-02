@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import api from "../api/client";
 import type { SemaphoreRun, SnapshotSummary } from "../api/types";
@@ -193,6 +193,11 @@ export default function Semaforos() {
                             <span className="text-gray-200 font-mono text-xs">
                               {Number(vix.valor ?? 0).toFixed(2)}
                             </span>
+                            {vix.vs_sma20 != null && (
+                              <span className={`ml-1.5 text-xs font-mono ${Number(vix.vs_sma20) > 0 ? "text-red-400" : "text-green-500"}`}>
+                                {Number(vix.vs_sma20) >= 0 ? "+" : ""}{Number(vix.vs_sma20).toFixed(0)}%
+                              </span>
+                            )}
                             <p className="text-gray-600 text-xs">{String(vix.nivel ?? "")}</p>
                           </div>
                         ) : (
@@ -242,45 +247,169 @@ export default function Semaforos() {
   );
 }
 
+function RetChip({ label, ret1d, ret5d, extra }: { label: string; ret1d: number; ret5d?: number; extra?: string }) {
+  const isPos = ret1d >= 0;
+  return (
+    <div className={`flex flex-col px-2.5 py-1.5 rounded-lg border text-xs font-mono min-w-[70px] ${
+      isPos ? "bg-green-500/10 border-green-500/20" : "bg-red-500/10 border-red-500/20"
+    }`}>
+      <span className="text-gray-300 font-semibold text-[11px]">{label}</span>
+      <span className={isPos ? "text-green-400" : "text-red-400"}>{isPos ? "+" : ""}{ret1d.toFixed(2)}%</span>
+      {ret5d !== undefined && (
+        <span className="text-gray-500 text-[10px]">5D: {ret5d >= 0 ? "+" : ""}{ret5d.toFixed(2)}%</span>
+      )}
+      {extra && <span className="text-gray-500 text-[10px]">{extra}</span>}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2 font-medium">{children}</p>;
+}
+
 function ExpandedDetail({ run }: { run: SemaphoreRun }) {
-  const mercado = run.semaforo_raw?.mercado as Record<string, Record<string, unknown>> | undefined;
-  const sem = run.semaforo_raw?.semaforo as Record<string, unknown> | undefined;
+  const raw = run.semaforo_raw as Record<string, unknown>;
+  const sem       = raw?.semaforo as Record<string, unknown> | undefined;
+  const mercado   = raw?.mercado  as Record<string, Record<string, unknown>> | undefined;
+  const credito   = raw?.credito  as Record<string, unknown> | undefined;
+  const sectores  = raw?.sectores as Record<string, unknown> | undefined;
+  const tasas     = raw?.tasas    as Record<string, unknown> | undefined;
+  const emergentes = raw?.emergentes as Record<string, unknown> | undefined;
+  const razones   = (raw?.semaforo as Record<string, unknown> | undefined)?.razones as string[] | undefined;
+  const puntos    = sem?.puntos as number | undefined;
 
   return (
-    <div className="space-y-4">
-      {/* Consejo full */}
+    <div className="space-y-5">
+      {/* Consejo + score */}
       {sem?.consejo != null && (
-        <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Consejo completo</p>
-          <p className="text-sm text-gray-300">{String(sem.consejo)}</p>
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <SectionLabel>Consejo</SectionLabel>
+            <p className="text-sm text-gray-300">{String(sem.consejo)}</p>
+          </div>
+          {puntos != null && (
+            <div className="text-right shrink-0">
+              <SectionLabel>Score de riesgo</SectionLabel>
+              <span className={`text-2xl font-bold font-mono ${
+                puntos <= 2 ? "text-green-400" : puntos <= 6 ? "text-yellow-400" : puntos <= 10 ? "text-orange-400" : "text-red-400"
+              }`}>{puntos}</span>
+              <p className="text-[10px] text-gray-600 mt-0.5">
+                {puntos <= 2 ? "GO (0–2)" : puntos <= 6 ? "PARTIAL (3–6)" : puntos <= 10 ? "WAIT (7–10)" : "ABORT (≥11)"}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Market returns */}
+      {/* Factores */}
+      {razones && razones.length > 0 && (
+        <div>
+          <SectionLabel>Factores de riesgo</SectionLabel>
+          <ul className="space-y-0.5">
+            {razones.map((r, i) => (
+              <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
+                <span className="text-orange-500 mt-0.5">•</span>
+                <span>{r}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Mercado broad */}
       {mercado && Object.keys(mercado).length > 0 && (
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Retornos del mercado (1d)</p>
+          <SectionLabel>Mercado (SPY · QQQ · XLE)</SectionLabel>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(mercado).map(([ticker, data]) => {
-              const ret = Number(data.ret_1d ?? 0);
-              const isPos = ret >= 0;
-              return (
-                <div
-                  key={ticker}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono ${
-                    isPos
-                      ? "bg-green-500/10 border-green-500/30 text-green-400"
-                      : "bg-red-500/10 border-red-500/30 text-red-400"
-                  }`}
-                >
-                  <span className="text-gray-300 font-semibold">{ticker}</span>
-                  <span>{isPos ? "+" : ""}{ret.toFixed(2)}%</span>
-                </div>
-              );
-            })}
+            {Object.entries(mercado).map(([ticker, data]) => (
+              <RetChip
+                key={ticker}
+                label={ticker}
+                ret1d={Number(data.ret_1d ?? 0)}
+                ret5d={Number(data.ret_5d ?? 0)}
+                extra={`RSI ${Number(data.rsi14 ?? 50).toFixed(0)} · ${data.bajo_sma50 ? "⚠ bajo SMA50" : "✓ SMA50"}`}
+              />
+            ))}
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Crédito */}
+        {credito && (
+          <div>
+            <SectionLabel>Crédito (HYG)</SectionLabel>
+            <div className="flex gap-2 flex-wrap">
+              <RetChip
+                label="HYG"
+                ret1d={Number(credito.hyg_ret_1d ?? 0)}
+                ret5d={Number(credito.hyg_ret_5d ?? 0)}
+                extra={credito.stress ? "⚠ STRESS" : "✓ Normal"}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Sectores */}
+        {sectores && (
+          <div>
+            <SectionLabel>Sectores</SectionLabel>
+            <div className="flex gap-2 flex-wrap">
+              {(["XLF", "XLU", "XLK"] as const).map((t) => {
+                const d = sectores[t] as Record<string, unknown> | undefined;
+                if (!d) return null;
+                return (
+                  <RetChip
+                    key={t}
+                    label={t}
+                    ret1d={Number(d.ret_1d ?? 0)}
+                    ret5d={Number(d.ret_5d ?? 0)}
+                  />
+                );
+              })}
+            </div>
+            <div className="mt-1.5 space-y-0.5">
+              {Boolean(sectores.rotacion_defensiva) && (
+                <p className="text-xs text-orange-400">⚠ Rotación defensiva activa</p>
+              )}
+              {Boolean(sectores.stress_financiero) && (
+                <p className="text-xs text-red-400">⚠ Financiero bajo presión</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tasas */}
+        {tasas && (
+          <div>
+            <SectionLabel>Tasa 10Y (TNX)</SectionLabel>
+            <div className={`px-3 py-2 rounded-lg border text-xs font-mono ${
+              Boolean(tasas.spike)
+                ? "bg-orange-500/10 border-orange-500/30 text-orange-300"
+                : "bg-gray-800 border-gray-700 text-gray-300"
+            }`}>
+              <p className="text-base font-bold">{Number(tasas.valor ?? 0).toFixed(3)}%</p>
+              <p>Δ 5D: {Number(tasas.cambio_5d ?? 0) >= 0 ? "+" : ""}{(Number(tasas.cambio_5d ?? 0) * 100).toFixed(0)} bps</p>
+              {Boolean(tasas.spike) && <p className="text-orange-400 mt-0.5">⚠ Spike de tasas</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Emergentes */}
+        {emergentes && (
+          <div>
+            <SectionLabel>Emergentes (EEM)</SectionLabel>
+            <div className="flex gap-2 flex-wrap">
+              <RetChip
+                label="EEM"
+                ret1d={Number(emergentes.ret_1d ?? 0)}
+                ret5d={Number(emergentes.ret_5d ?? 0)}
+                extra={emergentes.stress ? "⚠ STRESS" : "✓ Normal"}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
