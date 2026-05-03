@@ -165,7 +165,7 @@ export default function MonthReport() {
 
           {/* Bar chart + Pie chart */}
           {weightsData.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
               {/* Actual vs objetivo */}
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Actual vs Objetivo</p>

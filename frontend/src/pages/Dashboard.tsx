@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import StockSearchPanel from "../components/StockSearchPanel";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
-  PieChart, Pie, Cell,
 } from "recharts";
 import api from "../api/client";
 import type { SnapshotSummary, Holding, EvolutionPoint } from "../api/types";
@@ -41,7 +40,63 @@ function fmt(n: number) {
   return `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function DonutChart({ holdings, period }: { holdings: Holding[]; period: string }) {
+  const sorted = [...holdings].sort((a, b) => Number(b.market_value) - Number(a.market_value));
+  const total = sorted.reduce((s, h) => s + Number(h.market_value), 0);
+  const cx = 100, cy = 100, r = 80, ir = 52;
+
+  let cumDeg = -90;
+  const slices = sorted.map((h, i) => {
+    const pct = Number(h.market_value) / total;
+    const deg = pct * 360;
+    const start = cumDeg;
+    cumDeg += deg;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(toRad(start));
+    const y1 = cy + r * Math.sin(toRad(start));
+    const x2 = cx + r * Math.cos(toRad(cumDeg));
+    const y2 = cy + r * Math.sin(toRad(cumDeg));
+    const ix1 = cx + ir * Math.cos(toRad(start));
+    const iy1 = cy + ir * Math.sin(toRad(start));
+    const ix2 = cx + ir * Math.cos(toRad(cumDeg));
+    const iy2 = cy + ir * Math.sin(toRad(cumDeg));
+    const large = deg > 180 ? 1 : 0;
+    const d = [
+      `M ${x1} ${y1}`,
+      `A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`,
+      `L ${ix2} ${iy2}`,
+      `A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1}`,
+      "Z",
+    ].join(" ");
+    return { d, color: PIE_COLORS[i % PIE_COLORS.length], symbol: h.symbol };
+  });
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col">
+      <p className="text-sm font-medium text-gray-300 mb-3">Distribución — {period.split(" - ")[0]}</p>
+      <div className="flex justify-center mb-3">
+        <svg width={200} height={200} viewBox="0 0 200 200">
+          {slices.map((s) => (
+            <path key={s.symbol} d={s.d} fill={s.color} stroke="#111827" strokeWidth={1} />
+          ))}
+        </svg>
+      </div>
+      <div className="flex flex-col gap-1 overflow-y-auto">
+        {sorted.map((h, i) => (
+          <div key={h.symbol} className="flex items-center gap-2 text-xs">
+            <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+            <span className="font-mono text-gray-200 w-12 flex-shrink-0">{h.symbol}</span>
+            <span className="text-gray-500">{Number(h.weight).toFixed(1)}%</span>
+            <span className="text-gray-600 ml-auto">{fmt(h.market_value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([]);
   const [evolution, setEvolution] = useState<EvolutionPoint[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -153,13 +208,22 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Chart + history */}
+      {/* Charts row: evolution + pie */}
       <div className="grid grid-cols-3 gap-4">
+        {/* Evolution line chart */}
         <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-sm font-medium text-gray-300 mb-4">Evolución del portfolio</p>
+          <p className="text-sm font-medium text-gray-300 mb-1">Evolución del portfolio</p>
+          <p className="text-xs text-gray-600 mb-4">Click en un punto para ver el detalle del mes</p>
           {evolutionForChart.length > 1 ? (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={evolutionForChart}>
+              <LineChart
+                data={evolutionForChart}
+                onClick={(data) => {
+                  const id = data?.activePayload?.[0]?.payload?.id;
+                  if (id) navigate(`/months/${id}`);
+                }}
+                style={{ cursor: "pointer" }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 12 }} />
                 <YAxis tick={{ fill: "#6b7280", fontSize: 12 }} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
@@ -180,80 +244,9 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Month list */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-sm font-medium text-gray-300 mb-4">Historial mensual</p>
-          <div className="space-y-2">
-            {snapshots.map((s) => (
-              <Link
-                key={s.id}
-                to={`/months/${s.id}`}
-                className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors group"
-              >
-                <div>
-                  <p className="text-sm text-gray-200 group-hover:text-white">{s.period}</p>
-                  <p className="text-xs text-gray-500">{fmt(s.total_value)}</p>
-                </div>
-                {s.semaphore_code ? (
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${SEMAPHORE_COLORS[s.semaphore_code] ?? ""}`}>
-                    {s.semaphore_code}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-700">—</span>
-                )}
-              </Link>
-            ))}
-          </div>
-        </div>
+        {/* Pie chart — portfolio distribution */}
+        {holdings.length > 0 && <DonutChart holdings={holdings} period={latest.period} />}
       </div>
-
-      {/* Portfolio distribution pie chart */}
-      {holdings.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-sm font-medium text-gray-300 mb-4">Distribución del portfolio — {latest.period}</p>
-          <div className="flex items-center gap-8">
-            <ResponsiveContainer width={260} height={220}>
-              <PieChart>
-                <Pie
-                  data={holdings.sort((a, b) => Number(b.market_value) - Number(a.market_value))}
-                  dataKey="market_value"
-                  nameKey="symbol"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={95}
-                  strokeWidth={0}
-                >
-                  {holdings
-                    .sort((a, b) => Number(b.market_value) - Number(a.market_value))
-                    .map((h, i) => (
-                      <Cell key={h.symbol} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8 }}
-                  formatter={(v: number, name: string) => [fmt(v), name]}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-              {holdings
-                .sort((a, b) => Number(b.market_value) - Number(a.market_value))
-                .map((h, i) => (
-                  <div key={h.symbol} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
-                    />
-                    <span className="font-mono text-gray-200 w-14 flex-shrink-0">{h.symbol}</span>
-                    <span className="text-gray-400">{Number(h.weight).toFixed(1)}%</span>
-                    <span className="text-gray-600 ml-auto">{fmt(h.market_value)}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Holdings table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
