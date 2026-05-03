@@ -73,14 +73,26 @@ def run_markowitz(alpaca_data: dict) -> dict:
     total_val = alpaca_data["total_value"]
     current_w = {s: alpaca_data["holdings"][s]["weight"] for s in symbols}
 
-    prices    = download_data(symbols, LOOKBACK, "")
+    # yfinance uses dash instead of dot for class-B tickers (BRK.B → BRK-B)
+    yf_symbols = [s.replace(".", "-") for s in symbols]
+    yf_to_orig = {yf: orig for orig, yf in zip(symbols, yf_symbols)}
+    prices    = download_data(yf_symbols, LOOKBACK, "")
+    prices    = prices.rename(columns=yf_to_orig)
     available = [s for s in symbols if s in prices.columns]
     if not available:
         raise ValueError("yfinance no devolvió precios para ningún símbolo del portafolio.")
     prices    = prices[available]
+    # Drop columns where yfinance returned all NaN (e.g. ticker lookup failures)
+    prices    = prices.dropna(axis=1, how="all")
+    available = prices.columns.tolist()
     if prices.empty:
         raise ValueError("No hay datos de precios históricos para los símbolos del portafolio.")
     log_ret   = np.log(prices / prices.shift(1)).dropna()
+    if log_ret.empty:
+        raise ValueError(
+            "No hay suficientes datos históricos para calcular retornos. "
+            "Verificá que los tickers del portafolio tengan datos en yfinance."
+        )
     last_p    = prices.iloc[-1].to_dict()
 
     risk_df         = risk_analysis(log_ret, portfolio)
@@ -206,4 +218,4 @@ def run_stock_analyzer(symbol: str) -> dict:
     """Run stock/ETF analysis for a single ticker. Returns structured data dict."""
     _ensure_scripts_in_path()
     from stock_analyzer import analyze_to_dict
-    return analyze_to_dict(symbol.upper())
+    return analyze_to_dict(symbol.upper().replace(".", "-"))
