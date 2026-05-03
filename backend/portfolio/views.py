@@ -11,7 +11,8 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
 from rest_framework.views import APIView
 from django.db import transaction
-from django.db.models import F, Prefetch
+from django.db.models import F, Prefetch, Sum, DecimalField, Value
+from django.db.models.functions import Coalesce
 
 from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
 from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer
@@ -174,7 +175,13 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         data = (
             MonthlySnapshot.objects
             .order_by("period_date")
-            .values("id", "period_date", "period", "total_value", "cash", "dividend_income")
+            .annotate(
+                invested_capital=Coalesce(
+                    Sum("holdings__cost_basis"),
+                    Value(0, output_field=DecimalField()),
+                )
+            )
+            .values("id", "period_date", "period", "total_value", "cash", "dividend_income", "invested_capital")
         )
         return Response(list(data))
 

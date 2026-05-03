@@ -130,6 +130,7 @@ export interface EvolutionPoint {
   total_value: number;
   cash: number;
   dividend_income: number;
+  invested_capital: number;
 }
 
 export interface SemaphoreRun {

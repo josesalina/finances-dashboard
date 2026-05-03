@@ -3,10 +3,17 @@ import { Link } from "react-router-dom";
 import StockSearchPanel from "../components/StockSearchPanel";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell,
 } from "recharts";
 import api from "../api/client";
 import type { SnapshotSummary, Holding, EvolutionPoint } from "../api/types";
+
+const PIE_COLORS = [
+  "#22c55e", "#3b82f6", "#f59e0b", "#a78bfa", "#f87171",
+  "#34d399", "#60a5fa", "#fbbf24", "#c084fc", "#fb923c",
+  "#2dd4bf", "#818cf8", "#e879f9", "#4ade80", "#38bdf8",
+];
 
 const SEMAPHORE_COLORS: Record<string, string> = {
   GO:      "bg-green-500/20 text-green-400 border-green-500/30",
@@ -151,7 +158,7 @@ export default function Dashboard() {
         <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-sm font-medium text-gray-300 mb-4">Evolución del portfolio</p>
           {evolutionForChart.length > 1 ? (
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={220}>
               <LineChart data={evolutionForChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 12 }} />
@@ -161,7 +168,10 @@ export default function Dashboard() {
                   labelStyle={{ color: "#e5e7eb" }}
                   formatter={(v: number) => [fmt(v), ""]}
                 />
-                <Line type="monotone" dataKey="total_value" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 3 }} name="Total" />
+                <Legend wrapperStyle={{ fontSize: 12, color: "#9ca3af" }} />
+                <Line type="monotone" dataKey="total_value" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 3 }} name="Valor total" />
+                <Line type="monotone" dataKey="invested_capital" stroke="#3b82f6" strokeWidth={2} dot={{ fill: "#3b82f6", r: 3 }} name="Capital invertido" />
+                <Line type="monotone" dataKey="dividend_income" stroke="#f59e0b" strokeWidth={1.5} dot={{ fill: "#f59e0b", r: 3 }} name="Dividendos" />
                 <Line type="monotone" dataKey="cash" stroke="#6b7280" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="Cash" />
               </LineChart>
             </ResponsiveContainer>
@@ -196,6 +206,54 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Portfolio distribution pie chart */}
+      {holdings.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p className="text-sm font-medium text-gray-300 mb-4">Distribución del portfolio — {latest.period}</p>
+          <div className="flex items-center gap-8">
+            <ResponsiveContainer width={260} height={220}>
+              <PieChart>
+                <Pie
+                  data={holdings.sort((a, b) => Number(b.market_value) - Number(a.market_value))}
+                  dataKey="market_value"
+                  nameKey="symbol"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={95}
+                  strokeWidth={0}
+                >
+                  {holdings
+                    .sort((a, b) => Number(b.market_value) - Number(a.market_value))
+                    .map((h, i) => (
+                      <Cell key={h.symbol} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8 }}
+                  formatter={(v: number, name: string) => [fmt(v), name]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+              {holdings
+                .sort((a, b) => Number(b.market_value) - Number(a.market_value))
+                .map((h, i) => (
+                  <div key={h.symbol} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }}
+                    />
+                    <span className="font-mono text-gray-200 w-14 flex-shrink-0">{h.symbol}</span>
+                    <span className="text-gray-400">{Number(h.weight).toFixed(1)}%</span>
+                    <span className="text-gray-600 ml-auto">{fmt(h.market_value)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Holdings table */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
