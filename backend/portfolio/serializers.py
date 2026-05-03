@@ -32,7 +32,9 @@ class SnapshotListSerializer(serializers.ModelSerializer):
         ]
 
     def get_semaphore_code(self, obj):
-        run = obj.semaphore_runs.first()  # ordered by -ran_at
+        # Use prefetch cache (_latest_runs) when available, fallback to DB query
+        runs = getattr(obj, "_latest_runs", None)
+        run = runs[0] if runs else obj.semaphore_runs.first()
         if run:
             return run.semaforo_raw.get("semaforo", {}).get("code")
         return None
@@ -49,7 +51,9 @@ class SnapshotDetailSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_semaphore_code(self, obj):
-        run = obj.semaphore_runs.first()  # ordered by -ran_at
+        # Use prefetch cache (_latest_runs) when available, fallback to DB query
+        runs = getattr(obj, "_latest_runs", None)
+        run = runs[0] if runs else obj.semaphore_runs.first()
         if run:
             return run.semaforo_raw.get("semaforo", {}).get("code")
         return None
