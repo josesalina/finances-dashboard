@@ -58,7 +58,7 @@ export default function StockSearchPanel({ onClose, tickers }: Props) {
     if (!t) return;
     setLoading(true); setError(null); setData(null);
     try {
-      const { data: result } = await api.get<StockData>(`/analyze/?ticker=${t}`);
+      const { data: result } = await api.get<StockData>(`/analyze/${t}/`);
       setData(result);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error

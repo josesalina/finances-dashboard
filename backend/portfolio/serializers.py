@@ -75,4 +75,16 @@ class SemaphoreRunSerializer(serializers.ModelSerializer):
 class DividendConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = DividendConfig
-        fields = "__all__"
+        fields = [
+            "id", "symbol", "amount_per_share", "interval_months",
+            "start_date", "end_date", "tax_exempt", "notes",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def validate(self, attrs):
+        start = attrs.get("start_date") or (self.instance.start_date if self.instance else None)
+        end = attrs.get("end_date") or (self.instance.end_date if self.instance else None)
+        if start and end and end < start:
+            raise serializers.ValidationError({"end_date": "end_date must be >= start_date."})
+        return attrs

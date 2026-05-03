@@ -360,10 +360,8 @@ class SemaphoreRunViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class StockAnalyzerView(APIView):
-    def get(self, request):
-        ticker = request.query_params.get("ticker", "").strip().upper()
-        if not ticker:
-            return Response({"error": "Parámetro 'ticker' requerido."}, status=status.HTTP_400_BAD_REQUEST)
+    def get(self, request, ticker: str):
+        ticker = ticker.strip().upper()
         try:
             data = run_stock_analyzer(ticker)
         except Exception as e:

@@ -8,5 +8,5 @@ router.register(r"dividend-configs", DividendConfigViewSet, basename="dividend-c
 router.register(r"semaphore-runs", SemaphoreRunViewSet, basename="semaphore-run")
 
 urlpatterns = router.urls + [
-    path("analyze/", StockAnalyzerView.as_view(), name="stock-analyze"),
+    path("analyze/<str:ticker>/", StockAnalyzerView.as_view(), name="stock-analyze"),
 ]

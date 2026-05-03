@@ -6,6 +6,7 @@ import MonthReport from "./pages/MonthReport";
 import Dividends from "./pages/Dividends";
 import DividendConfig from "./pages/DividendConfig";
 import Semaforos from "./pages/Semaforos";
+import StockSearch from "./pages/StockSearch";
 export default function App() {
   return (
     <BrowserRouter>
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/dividends" element={<Dividends />} />
           <Route path="/semaforos" element={<Semaforos />} />
           <Route path="/dividend-config" element={<DividendConfig />} />
+          <Route path="/stock-search" element={<StockSearch />} />
         </Route>
       </Routes>
     </BrowserRouter>

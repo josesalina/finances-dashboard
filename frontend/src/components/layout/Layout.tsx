@@ -5,6 +5,7 @@ const navItems = [
   { to: "/dividends",       label: "Dividendos",       icon: "💵" },
   { to: "/semaforos",       label: "Semáforos",        icon: "🚦" },
   { to: "/dividend-config", label: "Config Dividendos", icon: "⚙️" },
+  { to: "/stock-search",    label: "Buscador",         icon: "🔍" },
   { to: "/pipeline",        label: "Pipeline",         icon: "🔧" },
 ];
 
