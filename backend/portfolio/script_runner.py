@@ -1,10 +1,14 @@
 import sys
+import logging
 import tempfile
 import shutil
+import concurrent.futures
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 MONTH_MAP = {
     "JANUARY": 1, "FEBRUARY": 2, "MARCH": 3, "APRIL": 4,
@@ -14,6 +18,19 @@ MONTH_MAP = {
 
 TZ_ARG = ZoneInfo("America/Argentina/Buenos_Aires")
 TZ_ET  = ZoneInfo("America/New_York")
+
+
+def _run_with_timeout(fn, *args):
+    """Run fn(*args) in a thread with YFINANCE_TIMEOUT seconds. Preserves original traceback on failure."""
+    timeout = getattr(settings, "YFINANCE_TIMEOUT", 60)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(fn, *args)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise TimeoutError(
+                f"yfinance call timed out after {timeout}s — the yfinance service may be slow or unavailable."
+            )
 
 
 def _ensure_scripts_in_path():
@@ -76,7 +93,8 @@ def run_markowitz(alpaca_data: dict) -> dict:
     # yfinance uses dash instead of dot for class-B tickers (BRK.B → BRK-B)
     yf_symbols = [s.replace(".", "-") for s in symbols]
     yf_to_orig = {yf: orig for orig, yf in zip(symbols, yf_symbols)}
-    prices    = download_data(yf_symbols, LOOKBACK, "")
+    logger.debug("run_markowitz: downloading prices for %s", yf_symbols)
+    prices    = _run_with_timeout(download_data, yf_symbols, LOOKBACK, "")
     prices    = prices.rename(columns=yf_to_orig)
     available = [s for s in symbols if s in prices.columns]
     if not available:
@@ -110,9 +128,9 @@ def run_markowitz(alpaca_data: dict) -> dict:
 
     orders_df, buy, sell, net = generate_orders(optimal, last_p, portfolio, cash, PRIMARY)
 
-    energy = sum(optimal[PRIMARY]["weights"].get(s, 0) for s in ["CVX", "XOM"]) * 100
-    tech   = sum(optimal[PRIMARY]["weights"].get(s, 0)
-                 for s in ["AAPL", "MSFT", "NVDA", "ADBE", "GOOG", "MU"]) * 100
+    sector_map = getattr(settings, "SECTOR_MAP", {})
+    energy = sum(optimal[PRIMARY]["weights"].get(s, 0) for s in sector_map.get("energy", ["CVX", "XOM"])) * 100
+    tech   = sum(optimal[PRIMARY]["weights"].get(s, 0) for s in sector_map.get("tech", ["AAPL", "MSFT", "NVDA", "ADBE", "GOOG", "MU"])) * 100
 
     return {
         "generated_at":     now_arg.isoformat(),
@@ -154,7 +172,8 @@ def run_semaforo(alpaca_data: dict, markowitz_data: dict) -> dict:
     symbols = alpaca_data["symbols"]
     cash    = alpaca_data["cash"]
 
-    prices               = get_market_data(symbols)
+    logger.debug("run_semaforo: downloading market data for %s", symbols)
+    prices               = _run_with_timeout(get_market_data, symbols)
     vix                  = analizar_vix(prices)
     mercado              = analizar_mercado(prices)
     energia              = analizar_energia(prices)

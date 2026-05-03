@@ -94,3 +94,38 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
 SCRIPTS_DIR = os.getenv("SCRIPTS_DIR", str(BASE_DIR / "scripts"))
+
+YFINANCE_TIMEOUT = int(os.getenv("YFINANCE_TIMEOUT", "60"))
+
+SECTOR_MAP = {
+    "energy": os.getenv("SECTOR_ENERGY", "CVX,XOM").split(","),
+    "tech": os.getenv("SECTOR_TECH", "AAPL,MSFT,NVDA,ADBE,GOOG,MU").split(","),
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "portfolio": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
+}
