@@ -5,7 +5,21 @@ from pathlib import Path
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser
+from rest_framework.views import APIView
+from django.db import transaction
+from django.db.models import F, Prefetch
+
+from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
+from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer
+from .script_runner import run_parse_pdf, run_markowitz, run_semaforo, run_asesor, run_stock_analyzer, period_to_date
+from .services import build_dividend_calendar
+
 logger = logging.getLogger(__name__)
+TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
 def _parse_date(val: str) -> date:
@@ -16,21 +30,6 @@ def _parse_date(val: str) -> date:
         except ValueError:
             continue
     raise ValueError(f"Unrecognised date format: {val}")
-
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser
-from django.db.models import F
-from django.db import transaction
-
-from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
-from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer
-from rest_framework.views import APIView
-from .script_runner import run_parse_pdf, run_markowitz, run_semaforo, run_asesor, run_stock_analyzer, period_to_date
-
-TZ = ZoneInfo("America/Argentina/Buenos_Aires")
-
 
 def _upsert_snapshot(data: dict) -> tuple[MonthlySnapshot, bool]:
     """Create or overwrite a MonthlySnapshot from alpaca_data dict."""
@@ -119,6 +118,18 @@ def _upsert_snapshot(data: dict) -> tuple[MonthlySnapshot, bool]:
 class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = MonthlySnapshot.objects.all()
 
+    def get_queryset(self):
+        semaphore_prefetch = Prefetch(
+            "semaphore_runs",
+            queryset=SemaphoreRun.objects.order_by("-ran_at"),
+            to_attr="_latest_runs",
+        )
+        if self.action == "retrieve":
+            return MonthlySnapshot.objects.prefetch_related(
+                "holdings", "dividends", "transactions", semaphore_prefetch
+            )
+        return MonthlySnapshot.objects.prefetch_related(semaphore_prefetch)
+
     def get_serializer_class(self):
         if self.action == "retrieve":
             return SnapshotDetailSerializer
@@ -186,7 +197,15 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="current")
     def current(self, request):
-        snapshot = MonthlySnapshot.objects.order_by("-period_date").first()
+        snapshot = (
+            MonthlySnapshot.objects
+            .prefetch_related(
+                "holdings", "dividends", "transactions",
+                Prefetch("semaphore_runs", queryset=SemaphoreRun.objects.order_by("-ran_at"), to_attr="_latest_runs"),
+            )
+            .order_by("-period_date")
+            .first()
+        )
         if not snapshot:
             return Response({"detail": "No snapshots yet."}, status=status.HTTP_404_NOT_FOUND)
         return Response(SnapshotDetailSerializer(snapshot).data)
@@ -244,10 +263,10 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             logger.error("run_semaforo failed for snapshot %s:\n%s", pk, traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        snapshot.semaforo_raw = semaforo_data
-        snapshot.save(update_fields=["semaforo_raw", "updated_at"])
-
-        run = SemaphoreRun.objects.create(snapshot=snapshot, semaforo_raw=semaforo_data)
+        with transaction.atomic():
+            snapshot.semaforo_raw = semaforo_data
+            snapshot.save(update_fields=["semaforo_raw", "updated_at"])
+            run = SemaphoreRun.objects.create(snapshot=snapshot, semaforo_raw=semaforo_data)
 
         sem = semaforo_data.get("semaforo", {})
         return Response({
@@ -276,8 +295,9 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             logger.error("run_asesor failed for snapshot %s:\n%s", pk, traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        snapshot.advisor_report = report
-        snapshot.save(update_fields=["advisor_report", "updated_at"])
+        with transaction.atomic():
+            snapshot.advisor_report = report
+            snapshot.save(update_fields=["advisor_report", "updated_at"])
 
         return Response({
             "id": snapshot.id,
@@ -289,6 +309,9 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="dividends-calendar")
     def dividends_calendar(self, request):
+        return Response(build_dividend_calendar())
+
+    def _DEAD_CODE_dividends_calendar(self, request):  # noqa: kept temporarily, delete after verifying service
         from collections import defaultdict
         from decimal import Decimal
         from datetime import date
