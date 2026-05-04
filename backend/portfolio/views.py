@@ -16,7 +16,7 @@ from django.db.models.functions import Coalesce
 
 from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
 from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer
-from .script_runner import run_parse_pdf, run_markowitz, run_semaforo, run_asesor, run_stock_analyzer, period_to_date
+from .script_runner import run_parse_pdf, run_markowitz, run_semaforo, run_asesor, run_stock_analyzer, run_current_prices, period_to_date
 from .services import build_dividend_calendar
 
 logger = logging.getLogger(__name__)
@@ -313,6 +313,79 @@ class SnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             "report": report,
         })
 
+
+    @action(detail=False, methods=["get"], url_path="current-prices")
+    def current_prices(self, request):
+        snapshot = (
+            MonthlySnapshot.objects
+            .prefetch_related("holdings")
+            .order_by("-period_date")
+            .first()
+        )
+        if not snapshot:
+            return Response({"detail": "No snapshots yet."}, status=status.HTTP_404_NOT_FOUND)
+
+        symbols = list(snapshot.holdings.values_list("symbol", flat=True))
+        if not symbols:
+            return Response({
+                "snapshot_id": snapshot.id,
+                "period": snapshot.period,
+                "cash": float(snapshot.cash),
+                "total_live_value": float(snapshot.total_value),
+                "holdings": [],
+                "updated_at": datetime.now(TZ).isoformat(),
+            })
+
+        try:
+            prices = run_current_prices(symbols)
+        except Exception as e:
+            logger.error("current_prices failed:\n%s", traceback.format_exc())
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        holdings_data = []
+        total_live_value = float(snapshot.cash)
+
+        for h in snapshot.holdings.all():
+            live_price = prices.get(h.symbol)
+            snap_price = float(h.market_price)
+            cost_basis = float(h.cost_basis)
+            qty = float(h.qty)
+
+            if live_price is not None:
+                live_value = qty * live_price
+                live_pnl = live_value - cost_basis
+                live_pnl_pct = (live_pnl / cost_basis * 100) if cost_basis else 0
+                price_change = live_price - snap_price
+                price_change_pct = (price_change / snap_price * 100) if snap_price else 0
+            else:
+                live_value = float(h.market_value)
+                live_pnl = float(h.unrealized_pnl)
+                live_pnl_pct = float(h.pnl_pct)
+                price_change = 0.0
+                price_change_pct = 0.0
+
+            total_live_value += live_value
+            holdings_data.append({
+                "symbol": h.symbol,
+                "qty": qty,
+                "current_price": live_price,
+                "current_value": round(live_value, 2),
+                "cost_basis": cost_basis,
+                "live_pnl": round(live_pnl, 2),
+                "live_pnl_pct": round(live_pnl_pct, 2),
+                "price_change": round(price_change, 4),
+                "price_change_pct": round(price_change_pct, 4),
+                "snapshot_price": snap_price,
+            })
+
+        return Response({
+            "snapshot_id": snapshot.id,
+            "period": snapshot.period,
+            "cash": float(snapshot.cash),
+            "total_live_value": round(total_live_value, 2),
+            "holdings": holdings_data,
+            "updated_at": datetime.now(TZ).isoformat(),
+        })
 
     @action(detail=False, methods=["get"], url_path="dividends-calendar")
     def dividends_calendar(self, request):

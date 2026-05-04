@@ -39,13 +39,13 @@ const SCRIPTS: Script[] = [
 ];
 
 const STATUS_STYLES: Record<ScriptStatus, string> = {
-  idle:    "border-gray-700 bg-gray-900",
+  idle:    "border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900",
   running: "border-blue-500/50 bg-blue-950/20",
   done:    "border-green-500/50 bg-green-950/20",
   error:   "border-red-500/50 bg-red-950/20",
 };
 const STATUS_BADGE: Record<ScriptStatus, string> = {
-  idle: "text-gray-500", running: "text-blue-400", done: "text-green-400", error: "text-red-400",
+  idle: "text-gray-400 dark:text-gray-500", running: "text-blue-500 dark:text-blue-400", done: "text-green-600 dark:text-green-400", error: "text-red-600 dark:text-red-400",
 };
 const STATUS_LABEL: Record<ScriptStatus, string> = {
   idle: "Pendiente", running: "Corriendo…", done: "Completado", error: "Error",
@@ -141,29 +141,29 @@ export default function Pipeline() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-white">Pipeline</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Pipeline</h2>
         <p className="text-sm text-gray-500 mt-0.5">Ejecutá los scripts en orden para procesar un nuevo mes.</p>
       </div>
 
       {/* PDF upload zone */}
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-          selectedFile ? "border-green-600 bg-green-950/10" : "border-gray-700 hover:border-gray-600"
+          selectedFile ? "border-green-600 bg-green-950/10" : "border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
         }`}
         onClick={() => fileRef.current?.click()}
       >
         <p className="text-3xl mb-2">{selectedFile ? "✅" : "📄"}</p>
         {selectedFile ? (
           <>
-            <p className="text-sm font-medium text-green-400">{selectedFile.name}</p>
+            <p className="text-sm font-medium text-green-600 dark:text-green-400">{selectedFile.name}</p>
             <p className="text-xs text-gray-500 mt-1">
               {(selectedFile.size / 1024).toFixed(0)} KB · click para cambiar
             </p>
           </>
         ) : (
           <>
-            <p className="text-sm font-medium text-gray-300">Subir estado de cuenta Alpaca</p>
-            <p className="text-xs text-gray-600 mt-1">Arrastrá el PDF acá o hacé click para seleccionar</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Subir estado de cuenta Alpaca</p>
+            <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">Arrastrá el PDF acá o hacé click para seleccionar</p>
           </>
         )}
         <input
@@ -192,7 +192,7 @@ export default function Pipeline() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <p className="text-sm font-medium text-gray-200">{script.label}</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{script.label}</p>
                     <span className={`text-xs ${STATUS_BADGE[s]}`}>{STATUS_LABEL[s]}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">{script.description}</p>
@@ -202,7 +202,7 @@ export default function Pipeline() {
                   disabled={disabled}
                   className={`px-4 py-2 text-xs rounded-lg font-medium transition-colors flex-shrink-0 ${
                     disabled
-                      ? "bg-gray-800 text-gray-600 cursor-not-allowed"
+                      ? "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
                       : "bg-green-600 text-white hover:bg-green-500"
                   }`}
                 >
@@ -210,7 +210,7 @@ export default function Pipeline() {
                 </button>
               </div>
               {logs[script.key] && (
-                <pre className="mt-3 text-xs text-gray-400 bg-gray-950 rounded-lg p-3 font-mono overflow-x-auto max-h-32 overflow-y-auto">
+                <pre className="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-950 rounded-lg p-3 font-mono overflow-x-auto max-h-32 overflow-y-auto">
                   {logs[script.key]}
                 </pre>
               )}

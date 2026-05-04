@@ -142,3 +142,25 @@ export interface SemaphoreRun {
   semaphore_code: string | null;
   semaforo_raw: Record<string, unknown>;
 }
+
+export interface LiveHolding {
+  symbol: string;
+  qty: number;
+  current_price: number | null;
+  current_value: number;
+  cost_basis: number;
+  live_pnl: number;
+  live_pnl_pct: number;
+  price_change: number;
+  price_change_pct: number;
+  snapshot_price: number;
+}
+
+export interface CurrentPrices {
+  snapshot_id: number;
+  period: string;
+  cash: number;
+  total_live_value: number;
+  holdings: LiveHolding[];
+  updated_at: string;
+}

@@ -238,3 +238,37 @@ def run_stock_analyzer(symbol: str) -> dict:
     _ensure_scripts_in_path()
     from stock_analyzer import analyze_to_dict
     return analyze_to_dict(symbol.upper().replace(".", "-"))
+
+
+def run_current_prices(symbols: list) -> dict:
+    """
+    Fetch the latest available price for each symbol via yfinance.
+    Returns {symbol: price_or_None}.
+    """
+    import yfinance as yf
+
+    yf_symbols = [s.replace(".", "-") for s in symbols]
+    yf_to_orig = {yf_s: orig for orig, yf_s in zip(symbols, yf_symbols)}
+
+    def _fetch():
+        return yf.download(
+            yf_symbols, period="5d", interval="1d",
+            auto_adjust=True, progress=False,
+        )
+
+    data = _run_with_timeout(_fetch)
+    result = {}
+
+    if data.empty:
+        return {orig: None for orig in symbols}
+
+    closes = data["Close"]
+
+    for yf_sym, orig_sym in yf_to_orig.items():
+        try:
+            col = closes if len(yf_symbols) == 1 else closes[yf_sym]
+            result[orig_sym] = round(float(col.dropna().iloc[-1]), 4)
+        except Exception:
+            result[orig_sym] = None
+
+    return result

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import api from "../api/client";
 
 interface Signal { metric: string; value: string; signal: string; }
@@ -55,25 +55,40 @@ function pct(n: number | null | undefined) {
 }
 
 const VERDICT_STYLES: Record<string, string> = {
-  "OPORTUNIDAD": "bg-green-500/10 text-green-400 border-green-500/30",
-  "PRECIO JUSTO": "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  "ALGO CARA":   "bg-orange-500/10 text-orange-400 border-orange-500/30",
-  "CARA":        "bg-red-500/10 text-red-400 border-red-500/30",
+  "OPORTUNIDAD": "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30",
+  "PRECIO JUSTO": "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/30",
+  "ALGO CARA":   "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
+  "CARA":        "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30",
 };
 const REC_STYLES: Record<string, string> = {
-  "COMPRA FUERTE": "text-green-400",
-  "COMPRA":        "text-green-400",
-  "MANTENER":      "text-yellow-400",
-  "VENDER":        "text-red-400",
-  "VENTA FUERTE":  "text-red-400",
+  "COMPRA FUERTE": "text-green-600 dark:text-green-400",
+  "COMPRA":        "text-green-600 dark:text-green-400",
+  "MANTENER":      "text-yellow-600 dark:text-yellow-400",
+  "VENDER":        "text-red-600 dark:text-red-400",
+  "VENTA FUERTE":  "text-red-600 dark:text-red-400",
 };
+
+const DEFAULT_TICKERS = ["AAPL", "MSFT", "NVDA", "SPY", "XOM", "KO", "GOOG", "BMA"];
 
 export default function StockSearch() {
   const [query, setQuery]     = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData]       = useState<StockData | null>(null);
   const [error, setError]     = useState<string | null>(null);
+  const [quickPicks, setQuickPicks] = useState<string[]>(DEFAULT_TICKERS);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.get("/snapshots/current/").then((r) => {
+      const holdings: { symbol: string; weight: number }[] = r.data.holdings ?? [];
+      if (holdings.length > 0) {
+        const sorted = [...holdings]
+          .sort((a, b) => Number(b.weight) - Number(a.weight))
+          .map((h) => h.symbol);
+        setQuickPicks(sorted);
+      }
+    }).catch(() => {});
+  }, []);
 
   const search = async (ticker = query) => {
     const t = ticker.trim().toUpperCase();
@@ -93,17 +108,17 @@ export default function StockSearch() {
     }
   };
 
-  const rangeColor = (pct?: number) => {
-    if (pct == null) return "text-gray-400";
-    if (pct < 30) return "text-green-400";
-    if (pct > 70) return "text-red-400";
-    return "text-yellow-400";
+  const rangeColor = (p?: number) => {
+    if (p == null) return "text-gray-500";
+    if (p < 30) return "text-green-600 dark:text-green-400";
+    if (p > 70) return "text-red-600 dark:text-red-400";
+    return "text-yellow-600 dark:text-yellow-400";
   };
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h2 className="text-xl font-semibold text-white">Buscador de Acciones</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Buscador de Acciones</h2>
         <p className="text-sm text-gray-500 mt-0.5">Análisis fundamental y técnico por ticker.</p>
       </div>
 
@@ -117,7 +132,7 @@ export default function StockSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value.toUpperCase())}
           placeholder="AAPL, SPY, XOM…"
-          className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 font-mono text-sm focus:outline-none focus:border-green-600 transition-colors"
+          className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 font-mono text-sm focus:outline-none focus:border-green-600 transition-colors"
         />
         <button
           type="submit"
@@ -130,11 +145,11 @@ export default function StockSearch() {
 
       {/* Quick picks */}
       <div className="flex flex-wrap gap-2">
-        {["AAPL", "MSFT", "NVDA", "SPY", "XOM", "KO", "GOOG", "BMA"].map((t) => (
+        {quickPicks.map((t) => (
           <button
             key={t}
             onClick={() => { setQuery(t); search(t); }}
-            className="px-3 py-1 text-xs bg-gray-800 text-gray-400 rounded-lg hover:bg-gray-700 hover:text-white transition-colors font-mono"
+            className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-white transition-colors font-mono"
           >
             {t}
           </button>
@@ -142,7 +157,7 @@ export default function StockSearch() {
       </div>
 
       {error && (
-        <div className="border border-red-500/30 bg-red-500/10 rounded-xl px-5 py-4 text-sm text-red-400">
+        <div className="border border-red-500/30 bg-red-500/10 rounded-xl px-5 py-4 text-sm text-red-600 dark:text-red-400">
           ❌ {error}
         </div>
       )}
@@ -156,18 +171,18 @@ export default function StockSearch() {
       {data && !loading && (
         <div className="space-y-5">
           {/* Header */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl px-6 py-5">
+          <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-6 py-5">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold font-mono text-white">{data.ticker}</span>
-                  {data.is_etf && <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full">ETF</span>}
+                  <span className="text-2xl font-bold font-mono text-gray-900 dark:text-white">{data.ticker}</span>
+                  {data.is_etf && <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-full">ETF</span>}
                 </div>
-                <p className="text-gray-400 mt-0.5">{data.name}</p>
-                {data.sector && <p className="text-xs text-gray-600 mt-1">{data.sector} › {data.industry}</p>}
+                <p className="text-gray-500 dark:text-gray-400 mt-0.5">{data.name}</p>
+                {data.sector && <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">{data.sector} › {data.industry}</p>}
               </div>
               <div className="text-right">
-                <p className="text-3xl font-bold text-white">{fmt(data.price.current)}</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{fmt(data.price.current)}</p>
                 {data.dividend_yield != null && (
                   <p className="text-xs text-gray-500 mt-1">💰 Dividendo: {data.dividend_yield.toFixed(2)}%</p>
                 )}
@@ -184,13 +199,13 @@ export default function StockSearch() {
                   </span>
                   <span>Máx 52s: {fmt(data.price.week52_high)}</span>
                 </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${data.price.range_pct < 30 ? "bg-green-500" : data.price.range_pct > 70 ? "bg-red-500" : "bg-yellow-500"}`}
                     style={{ width: `${data.price.range_pct}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                <div className="flex justify-between text-xs text-gray-400 dark:text-gray-600 mt-1">
                   <span>{pct(data.price.pct_from_low)} desde mín</span>
                   <span>{pct(data.price.pct_from_high)} desde máx</span>
                 </div>
@@ -200,21 +215,21 @@ export default function StockSearch() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Fundamentals */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-300">Análisis Fundamental</p>
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Análisis Fundamental</p>
                 <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${VERDICT_STYLES[data.fundamentals.verdict] ?? ""}`}>
                   {data.fundamentals.verdict_emoji} {data.fundamentals.verdict}
                 </span>
               </div>
 
               {/* Score bar */}
-              <div className="px-5 py-3 border-b border-gray-800/50">
+              <div className="px-5 py-3 border-b border-gray-200/50 dark:border-gray-800/50">
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
                   <span>Score</span>
                   <span className="font-mono">{data.fundamentals.score} / {data.fundamentals.max_score}</span>
                 </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-green-500 rounded-full"
                     style={{ width: `${Math.max(0, ((data.fundamentals.score + data.fundamentals.max_score) / (data.fundamentals.max_score * 2)) * 100)}%` }}
@@ -222,11 +237,11 @@ export default function StockSearch() {
                 </div>
               </div>
 
-              <div className="divide-y divide-gray-800/50">
+              <div className="divide-y divide-gray-200/50 dark:divide-gray-800/50">
                 {data.fundamentals.signals.map((s, i) => (
                   <div key={i} className="flex items-center justify-between px-5 py-2.5 text-sm">
                     <span className="text-gray-500 text-xs w-36 shrink-0">{s.metric}</span>
-                    <span className="text-gray-300 font-mono text-xs flex-1 text-center">{s.value}</span>
+                    <span className="text-gray-700 dark:text-gray-300 font-mono text-xs flex-1 text-center">{s.value}</span>
                     <span className="text-xs text-right shrink-0">{s.signal}</span>
                   </div>
                 ))}
@@ -237,24 +252,24 @@ export default function StockSearch() {
             <div className="space-y-5">
               {/* Technical indicators */}
               {data.technical.rsi != null && (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-                  <p className="text-sm font-medium text-gray-300">Técnico</p>
+                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Técnico</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-950 rounded-lg px-4 py-3">
+                    <div className="bg-gray-100 dark:bg-gray-950 rounded-lg px-4 py-3">
                       <p className="text-xs text-gray-500 mb-1">RSI (14)</p>
-                      <p className={`text-xl font-bold font-mono ${data.technical.rsi < 30 ? "text-green-400" : data.technical.rsi > 70 ? "text-red-400" : "text-yellow-400"}`}>
+                      <p className={`text-xl font-bold font-mono ${data.technical.rsi < 30 ? "text-green-600 dark:text-green-400" : data.technical.rsi > 70 ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"}`}>
                         {data.technical.rsi}
                       </p>
-                      <p className="text-xs text-gray-600 mt-0.5 capitalize">
+                      <p className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
                         {data.technical.rsi_signal === "oversold" ? "Sobrevendido 🟢" : data.technical.rsi_signal === "overbought" ? "Sobrecomprado 🔴" : "Neutral 🟡"}
                       </p>
                     </div>
-                    <div className="bg-gray-950 rounded-lg px-4 py-3">
+                    <div className="bg-gray-100 dark:bg-gray-950 rounded-lg px-4 py-3">
                       <p className="text-xs text-gray-500 mb-1">MACD</p>
-                      <p className={`text-xl font-bold font-mono ${data.technical.macd > 0 ? "text-green-400" : "text-red-400"}`}>
+                      <p className={`text-xl font-bold font-mono ${data.technical.macd > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {data.technical.macd > 0 ? "+" : ""}{data.technical.macd}
                       </p>
-                      <p className="text-xs text-gray-600 mt-0.5">
+                      <p className="text-xs text-gray-400 dark:text-gray-600 mt-0.5">
                         {data.technical.macd_signal === "bullish" ? "Alcista 🟢" : "Bajista 🔴"}
                       </p>
                     </div>
@@ -263,12 +278,12 @@ export default function StockSearch() {
               )}
 
               {/* Summary */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-                <p className="text-sm font-medium text-gray-300">Resumen</p>
+              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 space-y-3">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Resumen</p>
                 {data.summary.recommendation_label && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Consenso analistas</span>
-                    <span className={`font-semibold ${REC_STYLES[data.summary.recommendation_label] ?? "text-gray-300"}`}>
+                    <span className={`font-semibold ${REC_STYLES[data.summary.recommendation_label] ?? "text-gray-600 dark:text-gray-300"}`}>
                       {data.summary.recommendation_label}
                     </span>
                   </div>
@@ -276,10 +291,10 @@ export default function StockSearch() {
                 {data.summary.target_mean != null && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Target promedio</span>
-                    <span className="text-gray-200 font-mono">
+                    <span className="text-gray-700 dark:text-gray-200 font-mono">
                       {fmt(data.summary.target_mean)}
                       {data.summary.target_upside_pct != null && (
-                        <span className={`ml-1.5 text-xs ${data.summary.target_upside_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        <span className={`ml-1.5 text-xs ${data.summary.target_upside_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           ({pct(data.summary.target_upside_pct)})
                         </span>
                       )}
@@ -289,7 +304,7 @@ export default function StockSearch() {
                 {data.summary.key_support && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Soporte clave</span>
-                    <span className="text-green-400 font-mono">
+                    <span className="text-green-600 dark:text-green-400 font-mono">
                       {fmt(data.summary.key_support.precio)}
                       <span className="text-xs text-gray-500 ml-1.5">({pct(data.summary.key_support.dist_pct)})</span>
                     </span>
@@ -298,7 +313,7 @@ export default function StockSearch() {
                 {data.summary.key_resistance && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Resistencia clave</span>
-                    <span className="text-red-400 font-mono">
+                    <span className="text-red-600 dark:text-red-400 font-mono">
                       {fmt(data.summary.key_resistance.precio)}
                       <span className="text-xs text-gray-500 ml-1.5">({pct(data.summary.key_resistance.dist_pct)})</span>
                     </span>
@@ -312,16 +327,16 @@ export default function StockSearch() {
           {(data.supports.length > 0 || data.resistances.length > 0) && (
             <div className="grid grid-cols-2 gap-5">
               {[
-                { label: "🟢 Soportes", items: data.supports,    color: "text-green-400" },
-                { label: "🔴 Resistencias", items: data.resistances, color: "text-red-400" },
+                { label: "🟢 Soportes",    items: data.supports,    color: "text-green-600 dark:text-green-400" },
+                { label: "🔴 Resistencias", items: data.resistances, color: "text-red-600 dark:text-red-400" },
               ].map(({ label, items, color }) => (
-                <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-gray-800">
-                    <p className="text-sm font-medium text-gray-300">{label}</p>
+                <div key={label} className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-800">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{label}</p>
                   </div>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-xs text-gray-600 uppercase border-b border-gray-800">
+                      <tr className="text-xs text-gray-400 dark:text-gray-600 uppercase border-b border-gray-200 dark:border-gray-800">
                         <th className="px-4 py-2 text-left">Precio</th>
                         <th className="px-4 py-2 text-center">Dist.</th>
                         <th className="px-4 py-2 text-center">Conf.</th>
@@ -330,9 +345,9 @@ export default function StockSearch() {
                     </thead>
                     <tbody>
                       {items.map((lvl, i) => (
-                        <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/30">
+                        <tr key={i} className="border-b border-gray-200/40 dark:border-gray-800/40 hover:bg-gray-100/30 dark:hover:bg-gray-800/30">
                           <td className={`px-4 py-2.5 font-mono font-medium ${color}`}>{fmt(lvl.precio)}</td>
-                          <td className="px-4 py-2.5 text-center text-gray-400 font-mono text-xs">{pct(lvl.dist_pct)}</td>
+                          <td className="px-4 py-2.5 text-center text-gray-500 font-mono text-xs">{pct(lvl.dist_pct)}</td>
                           <td className="px-4 py-2.5 text-center">{"⭐".repeat(Math.min(lvl.confirmaciones, 4))}</td>
                           <td className="px-4 py-2.5 text-gray-500 text-xs">{lvl.origen}</td>
                         </tr>
@@ -344,7 +359,7 @@ export default function StockSearch() {
             </div>
           )}
 
-          <p className="text-xs text-gray-700 text-center pb-2">
+          <p className="text-xs text-gray-400 dark:text-gray-700 text-center pb-2">
             ⚠️ Análisis informativo — no constituye asesoramiento financiero.
           </p>
         </div>
