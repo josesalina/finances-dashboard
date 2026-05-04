@@ -143,6 +143,19 @@ export interface SemaphoreRun {
   semaforo_raw: Record<string, unknown>;
 }
 
+export interface TransactionHistory {
+  id: number;
+  date: string;
+  symbol: string;
+  side: string;
+  event_type: string;
+  qty: number;
+  price: number;
+  amount: number;
+  period: string;
+  period_date: string;
+}
+
 export interface LiveHolding {
   symbol: string;
   qty: number;

@@ -6,7 +6,7 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import api from "../api/client";
-import type { SnapshotSummary, Holding, EvolutionPoint, CurrentPrices, LiveHolding, Transaction } from "../api/types";
+import type { SnapshotSummary, Holding, EvolutionPoint, CurrentPrices, LiveHolding } from "../api/types";
 import { useChartColors } from "../context/ThemeContext";
 
 const PIE_COLORS = [
@@ -104,7 +104,6 @@ export default function Dashboard() {
   const [snapshots, setSnapshots] = useState<SnapshotSummary[]>([]);
   const [evolution, setEvolution] = useState<EvolutionPoint[]>([]);
   const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [liveData, setLiveData] = useState<CurrentPrices | null>(null);
   const [liveLoading, setLiveLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -121,7 +120,6 @@ export default function Dashboard() {
       setSnapshots(snapshotsRes.data);
       setEvolution(evolutionRes.data);
       setHoldings(currentRes.data.holdings ?? []);
-      setTransactions(currentRes.data.transactions ?? []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -190,7 +188,6 @@ export default function Dashboard() {
           initialTicker={selectedTicker}
           holding={selectedTicker ? holdings.find((h) => h.symbol === selectedTicker) : undefined}
           liveHolding={selectedTicker ? liveMap.get(selectedTicker) : undefined}
-          transactions={selectedTicker ? transactions.filter((t) => t.symbol === selectedTicker) : undefined}
         />
       )}
 

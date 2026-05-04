@@ -15,7 +15,7 @@ from django.db.models import F, Prefetch, Sum, DecimalField, Value
 from django.db.models.functions import Coalesce
 
 from .models import MonthlySnapshot, Holding, Dividend, Transaction, DividendConfig, SemaphoreRun
-from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer
+from .serializers import SnapshotListSerializer, SnapshotDetailSerializer, DividendConfigSerializer, SemaphoreRunSerializer, TransactionWithPeriodSerializer
 from .script_runner import run_parse_pdf, run_markowitz, run_semaforo, run_asesor, run_stock_analyzer, run_current_prices, period_to_date
 from .services import build_dividend_calendar
 
@@ -448,3 +448,12 @@ class StockAnalyzerView(APIView):
             logger.error("stock_analyzer failed for %s:\n%s", ticker, traceback.format_exc())
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(data)
+
+
+class TransactionListView(APIView):
+    def get(self, request):
+        symbol = request.query_params.get("symbol", "").strip().upper()
+        qs = Transaction.objects.select_related("snapshot").order_by("-snapshot__period_date", "-date")
+        if symbol:
+            qs = qs.filter(symbol__iexact=symbol)
+        return Response(TransactionWithPeriodSerializer(qs, many=True).data)

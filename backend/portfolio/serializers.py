@@ -20,6 +20,15 @@ class TransactionSerializer(serializers.ModelSerializer):
         exclude = ["snapshot"]
 
 
+class TransactionWithPeriodSerializer(serializers.ModelSerializer):
+    period = serializers.CharField(source="snapshot.period", read_only=True)
+    period_date = serializers.DateField(source="snapshot.period_date", read_only=True)
+
+    class Meta:
+        model = Transaction
+        fields = ["id", "date", "symbol", "side", "event_type", "qty", "price", "amount", "period", "period_date"]
+
+
 class SnapshotListSerializer(serializers.ModelSerializer):
     semaphore_code = serializers.SerializerMethodField()
 

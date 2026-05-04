@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import SnapshotViewSet, StockAnalyzerView, DividendConfigViewSet, SemaphoreRunViewSet
+from .views import SnapshotViewSet, StockAnalyzerView, DividendConfigViewSet, SemaphoreRunViewSet, TransactionListView
 
 router = DefaultRouter()
 router.register(r"snapshots", SnapshotViewSet, basename="snapshot")
@@ -9,4 +9,5 @@ router.register(r"semaphore-runs", SemaphoreRunViewSet, basename="semaphore-run"
 
 urlpatterns = router.urls + [
     path("analyze/<str:ticker>/", StockAnalyzerView.as_view(), name="stock-analyze"),
+    path("transactions/", TransactionListView.as_view(), name="transactions"),
 ]

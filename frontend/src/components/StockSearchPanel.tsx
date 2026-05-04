@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import api from "../api/client";
-import type { Holding, Transaction, LiveHolding } from "../api/types";
+import type { Holding, LiveHolding, TransactionHistory } from "../api/types";
 
 interface Signal { metric: string; value: string; signal: string; }
 interface Level  { precio: number; confirmaciones: number; origen: string; dist_pct: number; }
@@ -40,17 +40,17 @@ interface Props {
   initialTicker?: string;
   holding?: Holding;
   liveHolding?: LiveHolding;
-  transactions?: Transaction[];
 }
 
 const DEFAULT_TICKERS = ["AAPL", "MSFT", "NVDA", "SPY", "XOM", "KO", "GOOG", "BMA", "SCHD"];
 
-export default function StockSearchPanel({ onClose, tickers, initialTicker, holding, liveHolding, transactions }: Props) {
+export default function StockSearchPanel({ onClose, tickers, initialTicker, holding, liveHolding }: Props) {
   const quickPicks = tickers && tickers.length > 0 ? tickers : DEFAULT_TICKERS;
-  const [query, setQuery]     = useState(initialTicker ?? "");
-  const [loading, setLoading] = useState(false);
-  const [data, setData]       = useState<StockData | null>(null);
-  const [error, setError]     = useState<string | null>(null);
+  const [query, setQuery]           = useState(initialTicker ?? "");
+  const [loading, setLoading]       = useState(false);
+  const [data, setData]             = useState<StockData | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+  const [txHistory, setTxHistory]   = useState<TransactionHistory[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -68,10 +68,20 @@ export default function StockSearchPanel({ onClose, tickers, initialTicker, hold
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchTransactions = async (ticker: string) => {
+    try {
+      const { data: result } = await api.get<TransactionHistory[]>(`/transactions/?symbol=${ticker}`);
+      setTxHistory(result);
+    } catch {
+      setTxHistory([]);
+    }
+  };
+
   const search = async (ticker = query) => {
     const t = ticker.trim().toUpperCase();
     if (!t) return;
-    setLoading(true); setError(null); setData(null);
+    setLoading(true); setError(null); setData(null); setTxHistory([]);
+    fetchTransactions(t);
     try {
       const { data: result } = await api.get<StockData>(`/analyze/${t}/`);
       setData(result);
@@ -121,7 +131,7 @@ export default function StockSearchPanel({ onClose, tickers, initialTicker, hold
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-16">
           {error && (
             <div className="m-5 border border-red-500/30 bg-red-500/10 rounded-xl px-5 py-4 text-sm text-red-600 dark:text-red-400">❌ {error}</div>
           )}
@@ -332,45 +342,49 @@ export default function StockSearchPanel({ onClose, tickers, initialTicker, hold
               <p className="text-xs text-gray-400 dark:text-gray-700 text-center pb-1">
                 ⚠️ Análisis informativo — no constituye asesoramiento financiero.
               </p>
+            </div>
+          )}
 
-              {/* Transactions for this ticker */}
-              {transactions && transactions.length > 0 && (
-                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-                  <p className="px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-800">
-                    Transacciones del período
-                  </p>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-800">
-                        <th className="px-4 py-2 text-left">Fecha</th>
-                        <th className="px-4 py-2 text-left">Tipo</th>
-                        <th className="px-4 py-2 text-right">Qty</th>
-                        <th className="px-4 py-2 text-right">Precio</th>
-                        <th className="px-4 py-2 text-right">Monto</th>
+          {/* Transaction history — independent of stock analysis */}
+          {txHistory.length > 0 && (
+            <div className="mx-5 mb-5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+              <p className="px-5 py-3 text-sm font-medium text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-800">
+                Historial de transacciones
+              </p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-200 dark:border-gray-800 bg-gray-100/50 dark:bg-gray-800/30">
+                    <th className="px-4 py-2 text-left">Período</th>
+                    <th className="px-4 py-2 text-left">Fecha</th>
+                    <th className="px-4 py-2 text-left">Tipo</th>
+                    <th className="px-4 py-2 text-right">Qty</th>
+                    <th className="px-4 py-2 text-right">Precio</th>
+                    <th className="px-4 py-2 text-right">Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {txHistory.map((t) => {
+                    const isBuy = /buy|bot/i.test(t.side);
+                    const isSell = /sell|sld/i.test(t.side);
+                    return (
+                      <tr key={t.id} className="border-b border-gray-200/40 dark:border-gray-800/40 hover:bg-gray-100/30 dark:hover:bg-gray-800/30">
+                        <td className="px-4 py-2 text-gray-400 dark:text-gray-600">{t.period.split(" - ")[0]}</td>
+                        <td className="px-4 py-2 font-mono text-gray-500">{t.date}</td>
+                        <td className="px-4 py-2">
+                          <span className={`font-semibold ${isBuy ? "text-green-600 dark:text-green-400" : isSell ? "text-red-500 dark:text-red-400" : "text-gray-600 dark:text-gray-400"}`}>
+                            {t.side || t.event_type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{Number(t.qty).toFixed(4)}</td>
+                        <td className="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{fmt(t.price)}</td>
+                        <td className={`px-4 py-2 text-right font-mono ${Number(t.amount) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
+                          {fmt(Math.abs(t.amount))}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {transactions
-                        .sort((a, b) => b.date.localeCompare(a.date))
-                        .map((t) => (
-                          <tr key={t.id} className="border-b border-gray-200/40 dark:border-gray-800/40 hover:bg-gray-100/30 dark:hover:bg-gray-800/30">
-                            <td className="px-4 py-2 font-mono text-gray-500">{t.date}</td>
-                            <td className="px-4 py-2">
-                              <span className={`font-medium ${t.side === "buy" || t.side === "BUY" ? "text-green-600 dark:text-green-400" : t.side === "sell" || t.side === "SELL" ? "text-red-500 dark:text-red-400" : "text-gray-600 dark:text-gray-400"}`}>
-                                {t.side || t.event_type}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{Number(t.qty).toFixed(4)}</td>
-                            <td className="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{fmt(t.price)}</td>
-                            <td className={`px-4 py-2 text-right font-mono ${Number(t.amount) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>
-                              {fmt(Math.abs(t.amount))}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

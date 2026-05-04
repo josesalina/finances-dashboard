@@ -54,7 +54,9 @@ export default function Layout() {
         >
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
-        <Outlet />
+        <div className="pb-24">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
